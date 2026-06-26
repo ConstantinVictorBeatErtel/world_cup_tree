@@ -321,13 +321,10 @@ live_standings, live_matches = get_live_data()
 def check_finished_match(home, away):
     for m in live_matches:
         if m['home'] == home and m['away'] == away:
-            # If the score has digits, it is finished (e.g. "2–1")
-            if re.search(r'\d', m['score']):
+            if re.search(r'\d+[–\-]\d+', m['score']):
                 return True, m['score']
         elif m['home'] == away and m['away'] == home:
-            # If the score has digits, it is finished (e.g. "2–1")
-            if re.search(r'\d', m['score']):
-                # Swap goals since the home/away teams are reversed
+            if re.search(r'\d+[–\-]\d+', m['score']):
                 nums = re.findall(r'\d+', m['score'])
                 if len(nums) >= 2:
                     return True, f"{nums[1]}–{nums[0]}"
@@ -424,8 +421,7 @@ with col_btn3:
 
 st.write("")
 
-# ── SECTION 1: Matches Grid ──
-st.markdown('<div class="section-title">1. Decide Matchday 3 Fixtures</div>', unsafe_allow_html=True)
+# ── ALL COMPUTATION ──
 
 # Build a list of all fixtures G-L
 md3_matches = []
@@ -442,65 +438,6 @@ for gKey in pending_groups:
             "finished": finished,
             "score": score
         })
-
-# Render 12 matches in a 4-column layout
-cols = st.columns(4)
-for idx, match in enumerate(md3_matches):
-    col_idx = idx % 4
-    gKey = match["group"]
-    i = match["index"]
-    h = match["home"]
-    a = match["away"]
-    finished = match["finished"]
-    score = match["score"]
-    
-    r = st.session_state.picks.get(f"{gKey}_{i}", 'h')
-    
-    with cols[col_idx]:
-        with st.container(border=True):
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="color: #f5c518; font-weight: 800; font-size: 11px; letter-spacing: 0.05em;">GROUP {gKey}</span>
-                <span style="font-size: 9px; color: #6b7280; font-weight: bold; background: #1e1e28; padding: 2px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Fixture {i+1}</span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if finished:
-                st.markdown(f"""
-                <div style="display: flex; flex-direction: column; gap: 8px; margin: 4px 0; text-align: center;">
-                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(h)}</div>
-                    <div style="font-size: 16px; font-weight: 800; color: #0e0e12; background: #f5c518; padding: 4px; border-radius: 6px; width: 60px; margin: 0 auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));">{score}</div>
-                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(a)}</div>
-                    <div style="font-size: 10px; color: #22c55e; font-weight: bold; margin-top: 4px;">✓ Live Results Sync</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                # Show matchup title with flags
-                st.markdown(f"""
-                <div style="font-size: 12px; font-weight: bold; color: #e8e8f0; margin-bottom: 6px; text-align: center;">
-                    {f(h).split(' ')[0]} vs {f(a).split(' ')[0]}
-                </div>
-                """, unsafe_allow_html=True)
-                
-                selected = st.radio(
-                    label=f"select_{gKey}_{i}",
-                    options=[h, "Draw", a],
-                    index=0 if r == 'h' else (1 if r == 'd' else 2),
-                    horizontal=True,
-                    key=f"widget_{gKey}_{i}",
-                    format_func=format_team,
-                    label_visibility="collapsed"
-                )
-                # Save selection to state
-                if selected == h:
-                    st.session_state.picks[f"{gKey}_{i}"] = 'h'
-                elif selected == "Draw":
-                    st.session_state.picks[f"{gKey}_{i}"] = 'd'
-                else:
-                    st.session_state.picks[f"{gKey}_{i}"] = 'a'
-
-# ── SECTION 2: Projected Group Standings ──
-st.markdown('<div class="section-title">2. Projected Group Standings</div>', unsafe_allow_html=True)
 
 # Calculate live standings G-L mathematically from pre-MD3 base stats
 standings = {}
@@ -612,160 +549,22 @@ for idx, t in enumerate(list_thirds):
         "qualifies": idx < 8
     })
 
-# Render groups in 4 columns
-groups_cols = st.columns(4)
+# Compute 3rd-place assign/get3 (needed for bracket)
+qualGroups = "".join(sorted([t["group"] for t in all_thirds if t["qualifies"]]))
+combo = constants.COMBOS.get(qualGroups, "")
+assign = {}
+if len(combo) == 8:
+    for idx, sl in enumerate(constants.SLOT_ORDER):
+        assign[sl] = combo[idx]
+byGroup = {t["group"]: t["name"] for t in all_thirds}
+def get3(sl):
+    src = assign.get(sl)
+    return byGroup.get(src, f"3rd Grp {src}" if src else "?")
+
 group_keys = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
-for idx, gKey in enumerate(group_keys):
-    col_idx = idx % 4
-    st_teams = all_group_standings[gKey]
-    is_settled = gKey in ["A", "B", "C", "D", "E", "F"]
-    
-    with groups_cols[col_idx]:
-        with st.container(border=True):
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; margin-bottom: 8px;">
-                <span style="font-weight: 800; font-size: 13px; color: #e8e8f0;">GROUP {gKey}</span>
-                <span style="font-size: 9px; font-weight: 700; color: {'#22c55e' if is_settled else '#3b82f6'}; background: {'rgba(34, 197, 94, 0.1)' if is_settled else 'rgba(59, 130, 246, 0.1)'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
-                    {'Settled' if is_settled else 'Live'}
-                </span>
-            </div>
-            
-            <div style="display: flex; font-size: 9px; color: #6b7280; font-weight: 800; border-bottom: 1px solid #1a1a24; padding-bottom: 4px; margin-bottom: 4px;">
-                <span style="width: 14px;">#</span>
-                <span style="flex: 1;">TEAM</span>
-                <span style="width: 22px; text-align: right;">PTS</span>
-                <span style="width: 26px; text-align: right;">GD</span>
-                <span style="width: 22px; text-align: right;">GF</span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            for i, t in enumerate(st_teams):
-                is_3rd_qual = (i == 2 and any(x['name'] == t['name'] and x['qualifies'] for x in all_thirds))
-                qual = (i < 2 or is_3rd_qual)
-                
-                rank_color = "#22c55e" if i < 2 else ("#f5c518" if is_3rd_qual else "#6b7280")
-                bg_style = "background-color: rgba(34, 197, 94, 0.05);" if is_3rd_qual else "background-color: transparent;"
-                team_text_weight = "bold" if qual else "normal"
-                team_text_color = "#e8e8f0" if qual else "#6b7280"
-                
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; padding: 4px 6px; border-radius: 6px; {bg_style} font-size: 12px; gap: 4px;">
-                    <span style="width: 12px; font-weight: bold; color: {rank_color};">{i+1}</span>
-                    <span style="flex: 1; font-weight: {team_text_weight}; color: {team_text_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{f(t['name'])}</span>
-                    <span style="width: 22px; font-weight: {team_text_weight}; color: {team_text_color}; text-align: right;">{t['pts']}</span>
-                    <span style="width: 26px; color: {team_text_color}; text-align: right;">{fmt_gd(t['gd'])}</span>
-                    <span style="width: 22px; color: #6b7280; text-align: right;">{t['gf']}</span>
-                </div>
-                """, unsafe_allow_html=True)
 
-# ── SECTION 3: 3rd Place Standings & Bracket Key ──
-col_thirds, col_key = st.columns([1.2, 0.8])
-
-with col_thirds:
-    st.markdown('<div class="section-title">3rd Place Standings — All 12 Groups</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div style="background-color: #16161e; border: 1px solid #2a2a35; border-radius: 12px; padding: 12px 14px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); margin-bottom: 20px;">
-        <div style="display: flex; font-size: 9px; color: #6b7280; font-weight: 800; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; margin-bottom: 6px;">
-            <span style="width: 24px;">POS</span>
-            <span style="width: 32px; padding-left: 4px;">GRP</span>
-            <span style="flex: 1;">TEAM</span>
-            <span style="width: 32px; text-align: right;">PTS</span>
-            <span style="width: 32px; text-align: right;">GD</span>
-            <span style="width: 32px; text-align: right;">GF</span>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    for idx, t in enumerate(all_thirds):
-        if idx == 8:
-            st.markdown("""
-            <div style="display: flex; align-items: center; padding: 6px 14px; background: rgba(239, 68, 68, 0.08); border-top: 1px dashed #ef4444; border-bottom: 1px dashed #ef4444; margin: 6px 0;">
-                <span style="font-size: 9px; color: #ef4444; font-weight: 800; letter-spacing: 0.08em; margin: 0 auto;">
-                    🛑 TOP 8 CUT-OFF — TEAMS BELOW ARE ELIMINATED
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        qual = t["qualifies"]
-        bg_style = "background-color: rgba(34, 197, 94, 0.05);" if qual else "background-color: transparent;"
-        rank_icon = "✓" if qual else "✗"
-        rank_color = "#22c55e" if qual else "#ef4444"
-        text_color = "#e8e8f0" if qual else "#6b7280"
-        text_weight = "bold" if qual else "normal"
-        
-        st.markdown(f"""
-        <div style="display: flex; align-items: center; padding: 5px 6px; border-radius: 6px; {bg_style} font-size: 12px; gap: 4px; border-left: 3px solid {rank_color if qual else 'transparent'}">
-            <span style="width: 24px; font-weight: bold; color: {rank_color};">{rank_icon} {idx+1}</span>
-            <span style="width: 32px; font-weight: bold; color: #6b7280; padding-left: 4px;">3{t['group']}</span>
-            <span style="flex: 1; font-weight: {text_weight}; color: {text_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{f(t['name'])}</span>
-            <span style="width: 32px; font-weight: {text_weight}; color: {text_color}; text-align: right;">{t['pts']}</span>
-            <span style="width: 32px; color: {text_color}; text-align: right;">{fmt_gd(t['gd'])}</span>
-            <span style="width: 32px; color: #6b7280; text-align: right;">{t['gf']}</span>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    st.markdown("</div>", unsafe_allow_html=True)
-
-with col_key:
-    st.markdown('<div class="section-title">3rd Place Bracket Key</div>', unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div style="background-color: #16161e; border: 1px solid #2a2a35; border-radius: 12px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 12px; height: 350px;">
-        <div>
-            <h3 style="margin: 0; font-size: 13px; font-weight: 800; color: #f5c518; text-transform: uppercase; letter-spacing: 0.05em;">
-                3rd Place Bracket Assignment Key
-            </h3>
-            <p style="font-size: 11px; color: #6b7280; margin: 4px 0 12px; line-height: 1.4;">
-                FIFA Annexe C resolves which 3rd-place group letters face which winners. The current live assignment combinations are shown below.
-            </p>
-        </div>
-        <div style="display: flex; flex-direction: column; gap: 6px; overflow-y: auto; flex-grow: 1;">
-    """, unsafe_allow_html=True)
-    
-    qualGroups = "".join(sorted([t["group"] for t in all_thirds if t["qualifies"]]))
-    combo = constants.COMBOS.get(qualGroups, "")
-    
-    st.markdown(f"""
-    <div style="background: #1a1a24; padding: 10px 12px; border-radius: 6px; border: 1px solid #2a2a35; margin-bottom: 6px;">
-        <div style="font-size: 10px; color: #6b7280; font-weight: 700;">LIVE ADVANCING COMBINATION</div>
-        <div style="font-size: 16px; font-weight: 800; color: #f5c518; letter-spacing: 0.1em; marginTop: 2px;">
-            {qualGroups or 'Calculating...'}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    assign = {}
-    if len(combo) == 8:
-        for idx, sl in enumerate(constants.SLOT_ORDER):
-            assign[sl] = combo[idx]
-            
-    byGroup = {t["group"]: t["name"] for t in all_thirds}
-    def get3(sl):
-        src = assign.get(sl)
-        return byGroup.get(src, f"3rd Grp {src}" if src else "?")
-        
-    for winnerSlot in constants.SLOT_ORDER:
-        assignedGroup = assign.get(winnerSlot, "")
-        teamInSlot = byGroup.get(assignedGroup) if assignedGroup else None
-        
-        team_display_str = f(teamInSlot) if teamInSlot else ""
-        
-        st.markdown(f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #13131b; border: 1px solid #2a2a35; border-radius: 6px; font-size: 12px;">
-            <span style="font-weight: 600; color: #6b7280;">Winner Group {winnerSlot} vs</span>
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="color: #f5c518; font-weight: 800; background: rgba(245, 197, 24, 0.1); padding: 1px 6px; border-radius: 4px; font-size: 10px;">
-                    3rd {assignedGroup or '?'}
-                </span>
-                {f'<span style="color: #e8e8f0; font-weight: 500;">{team_display_str}</span>' if teamInSlot else ''}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-# ── SECTION 4: Knockout Bracket ──
-st.markdown('<div class="section-title">3. Interactive Knockout Bracket</div>', unsafe_allow_html=True)
+# ── SECTION 1: Knockout Bracket ──
+st.markdown('<div class="section-title">1. Interactive Knockout Bracket</div>', unsafe_allow_html=True)
 st.caption("Click on any team in the bracket matchups below to advance them to the next round!")
 
 # R32 Teams setup
@@ -1138,3 +937,106 @@ bracket_full_html = f"""
 </html>
 """
 components.html(bracket_full_html, height=900, scrolling=True)
+
+# ── SECTION 2: Matches Grid ──
+st.markdown('<div class="section-title">2. Decide Matchday 3 Fixtures</div>', unsafe_allow_html=True)
+
+cols = st.columns(4)
+for idx, match in enumerate(md3_matches):
+    col_idx = idx % 4
+    gKey = match["group"]
+    i = match["index"]
+    h = match["home"]
+    a = match["away"]
+    finished = match["finished"]
+    score = match["score"]
+
+    r = st.session_state.picks.get(f"{gKey}_{i}", 'h')
+
+    with cols[col_idx]:
+        with st.container(border=True):
+            st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="color: #f5c518; font-weight: 800; font-size: 11px; letter-spacing: 0.05em;">GROUP {gKey}</span>
+                <span style="font-size: 9px; color: #6b7280; font-weight: bold; background: #1e1e28; padding: 2px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Fixture {i+1}</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            if finished:
+                st.markdown(f"""
+                <div style="display: flex; flex-direction: column; gap: 8px; margin: 4px 0; text-align: center;">
+                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(h)}</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #0e0e12; background: #f5c518; padding: 4px; border-radius: 6px; width: 60px; margin: 0 auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));">{score}</div>
+                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(a)}</div>
+                    <div style="font-size: 10px; color: #22c55e; font-weight: bold; margin-top: 4px;">✓ Live Results Sync</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div style="font-size: 12px; font-weight: bold; color: #e8e8f0; margin-bottom: 6px; text-align: center;">
+                    {f(h).split(' ')[0]} vs {f(a).split(' ')[0]}
+                </div>
+                """, unsafe_allow_html=True)
+
+                selected = st.radio(
+                    label=f"select_{gKey}_{i}",
+                    options=[h, "Draw", a],
+                    index=0 if r == 'h' else (1 if r == 'd' else 2),
+                    horizontal=True,
+                    key=f"widget_{gKey}_{i}",
+                    format_func=format_team,
+                    label_visibility="collapsed"
+                )
+                if selected == h:
+                    st.session_state.picks[f"{gKey}_{i}"] = 'h'
+                elif selected == "Draw":
+                    st.session_state.picks[f"{gKey}_{i}"] = 'd'
+                else:
+                    st.session_state.picks[f"{gKey}_{i}"] = 'a'
+
+# ── SECTION 3: Projected Group Standings ──
+st.markdown('<div class="section-title">3. Projected Group Standings</div>', unsafe_allow_html=True)
+
+groups_cols = st.columns(4)
+for idx, gKey in enumerate(group_keys):
+    col_idx = idx % 4
+    st_teams = all_group_standings[gKey]
+    is_settled = gKey in ["A", "B", "C", "D", "E", "F"]
+
+    with groups_cols[col_idx]:
+        with st.container(border=True):
+            st.markdown(f"""
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a2a35; padding-bottom: 6px; margin-bottom: 8px;">
+                <span style="font-weight: 800; font-size: 13px; color: #e8e8f0;">GROUP {gKey}</span>
+                <span style="font-size: 9px; font-weight: 700; color: {'#22c55e' if is_settled else '#3b82f6'}; background: {'rgba(34, 197, 94, 0.1)' if is_settled else 'rgba(59, 130, 246, 0.1)'}; padding: 2px 6px; border-radius: 4px; text-transform: uppercase;">
+                    {'Settled' if is_settled else 'Live'}
+                </span>
+            </div>
+
+            <div style="display: flex; font-size: 9px; color: #6b7280; font-weight: 800; border-bottom: 1px solid #1a1a24; padding-bottom: 4px; margin-bottom: 4px;">
+                <span style="width: 14px;">#</span>
+                <span style="flex: 1;">TEAM</span>
+                <span style="width: 22px; text-align: right;">PTS</span>
+                <span style="width: 26px; text-align: right;">GD</span>
+                <span style="width: 22px; text-align: right;">GF</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            for i, t in enumerate(st_teams):
+                is_3rd_qual = (i == 2 and any(x['name'] == t['name'] and x['qualifies'] for x in all_thirds))
+                qual = (i < 2 or is_3rd_qual)
+
+                rank_color = "#22c55e" if i < 2 else ("#f5c518" if is_3rd_qual else "#6b7280")
+                bg_style = "background-color: rgba(34, 197, 94, 0.05);" if is_3rd_qual else "background-color: transparent;"
+                team_text_weight = "bold" if qual else "normal"
+                team_text_color = "#e8e8f0" if qual else "#6b7280"
+
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; padding: 4px 6px; border-radius: 6px; {bg_style} font-size: 12px; gap: 4px;">
+                    <span style="width: 12px; font-weight: bold; color: {rank_color};">{i+1}</span>
+                    <span style="flex: 1; font-weight: {team_text_weight}; color: {team_text_color}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{f(t['name'])}</span>
+                    <span style="width: 22px; font-weight: {team_text_weight}; color: {team_text_color}; text-align: right;">{t['pts']}</span>
+                    <span style="width: 26px; color: {team_text_color}; text-align: right;">{fmt_gd(t['gd'])}</span>
+                    <span style="width: 22px; color: #6b7280; text-align: right;">{t['gf']}</span>
+                </div>
+                """, unsafe_allow_html=True)
