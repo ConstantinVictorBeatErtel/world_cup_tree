@@ -280,7 +280,7 @@ def get_live_data():
             for m in matches:
                 home = m.find("th", class_="fhome")
                 away = m.find("th", class_="faway")
-                score = m.find("td", class_="fscore")
+                score = m.find(["td", "th"], class_="fscore")
                 
                 home_name = home.get_text().strip() if home else ""
                 away_name = away.get_text().strip() if away else ""
