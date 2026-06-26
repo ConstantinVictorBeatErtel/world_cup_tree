@@ -1,0 +1,11 @@
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+package-lock.json
+package.json
+vite.config.js
+index.html
+index.css
+main.jsx
+*.jsx
