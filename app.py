@@ -3,7 +3,6 @@ import streamlit.components.v1 as components
 import requests
 from bs4 import BeautifulSoup
 import re
-import json
 import constants
 import urllib.parse
 
@@ -356,21 +355,6 @@ if 'bracket_picks' not in st.session_state:
 
 # Handle query parameters resets and picks
 query_params = st.query_params
-
-# Restore state from URL params (survives mobile navigation / session resets)
-if "gp" in query_params:
-    try:
-        for k, v in json.loads(query_params["gp"]).items():
-            st.session_state.picks[k] = v
-    except Exception:
-        pass
-
-if "bp" in query_params:
-    try:
-        st.session_state.bracket_picks.update(json.loads(query_params["bp"]))
-    except Exception:
-        pass
-
 if "action" in query_params:
     action = query_params["action"]
     if action == "reset_groups":
@@ -384,6 +368,13 @@ if "action" in query_params:
             f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
         }
         st.session_state.bracket_picks = {}
+    st.query_params.clear()
+    st.rerun()
+
+if "match_id" in query_params and "winner" in query_params:
+    match_id = query_params["match_id"]
+    winner = query_params["winner"]
+    st.session_state.bracket_picks[match_id] = winner
     st.query_params.clear()
     st.rerun()
 
@@ -723,17 +714,8 @@ def make_html_match_card(match_id, match_data):
     t1_clickable_class = "disabled" if is_t1_placeholder else "clickable"
     t2_clickable_class = "disabled" if is_t2_placeholder else "clickable"
     
-    gp_str = urllib.parse.quote(json.dumps(st.session_state.picks))
-    if not is_t1_placeholder:
-        new_bp1 = urllib.parse.quote(json.dumps({**st.session_state.bracket_picks, match_id: t1}))
-        t1_href_attr = f'href="?bp={new_bp1}&gp={gp_str}" target="_parent"'
-    else:
-        t1_href_attr = ''
-    if not is_t2_placeholder:
-        new_bp2 = urllib.parse.quote(json.dumps({**st.session_state.bracket_picks, match_id: t2}))
-        t2_href_attr = f'href="?bp={new_bp2}&gp={gp_str}" target="_parent"'
-    else:
-        t2_href_attr = ''
+    t1_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t1)}" target="_parent"' if not is_t1_placeholder else ''
+    t2_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t2)}" target="_parent"' if not is_t2_placeholder else ''
     
     t1_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t1 and t1 else ''
     t2_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t2 and t2 else ''
@@ -888,6 +870,8 @@ tree_html = f"""
 </div>
 """
 
+# Render bracket using components.html for full unsanitized HTML rendering
+# We need to embed the CSS inside the component since it renders in its own iframe
 bracket_full_html = f"""
 <html>
 <head>
