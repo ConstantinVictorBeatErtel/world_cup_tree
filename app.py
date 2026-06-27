@@ -875,7 +875,13 @@ tree_html = f"""
 # components.html() iframe is sandboxed without top-navigation, which
 # silently blocks those links. The bracket CSS classes are already
 # defined in the page-level <style> block above.
-st.markdown(tree_html, unsafe_allow_html=True)
+#
+# st.markdown runs content through a Markdown parser first: lines indented
+# 4+ spaces become code blocks and blank lines split the HTML into separate
+# blocks. Strip per-line indentation and drop blank lines so the whole tree
+# is parsed as a single raw-HTML block instead of printed as code.
+tree_html_clean = "\n".join(ln.strip() for ln in tree_html.splitlines() if ln.strip())
+st.markdown(tree_html_clean, unsafe_allow_html=True)
 
 # ── SECTION 3: Projected Group Standings ──
 st.markdown('<div class="section-title">3. Projected Group Standings</div>', unsafe_allow_html=True)
