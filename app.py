@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import requests
 from bs4 import BeautifulSoup
 import re
+import json
 import constants
 import urllib.parse
 
@@ -355,6 +356,21 @@ if 'bracket_picks' not in st.session_state:
 
 # Handle query parameters resets and picks
 query_params = st.query_params
+
+# Restore state from URL params (survives mobile navigation / session resets)
+if "gp" in query_params:
+    try:
+        for k, v in json.loads(query_params["gp"]).items():
+            st.session_state.picks[k] = v
+    except Exception:
+        pass
+
+if "bp" in query_params:
+    try:
+        st.session_state.bracket_picks.update(json.loads(query_params["bp"]))
+    except Exception:
+        pass
+
 if "action" in query_params:
     action = query_params["action"]
     if action == "reset_groups":
@@ -368,13 +384,6 @@ if "action" in query_params:
             f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
         }
         st.session_state.bracket_picks = {}
-    st.query_params.clear()
-    st.rerun()
-
-if "match_id" in query_params and "winner" in query_params:
-    match_id = query_params["match_id"]
-    winner = query_params["winner"]
-    st.session_state.bracket_picks[match_id] = winner
     st.query_params.clear()
     st.rerun()
 
@@ -714,8 +723,10 @@ def make_html_match_card(match_id, match_data):
     t1_clickable_class = "disabled" if is_t1_placeholder else "clickable"
     t2_clickable_class = "disabled" if is_t2_placeholder else "clickable"
     
-    t1_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t1)}" target="_parent"' if not is_t1_placeholder else ''
-    t2_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t2)}" target="_parent"' if not is_t2_placeholder else ''
+    t1_safe = t1.replace("'", "\\'") if t1 else ''
+    t2_safe = t2.replace("'", "\\'") if t2 else ''
+    t1_href_attr = f"onclick=\"event.preventDefault(); pick('{match_id}', '{t1_safe}')\"" if not is_t1_placeholder else ''
+    t2_href_attr = f"onclick=\"event.preventDefault(); pick('{match_id}', '{t2_safe}')\"" if not is_t2_placeholder else ''
     
     t1_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t1 and t1 else ''
     t2_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t2 and t2 else ''
@@ -750,7 +761,7 @@ def make_html_center_column(state):
             </div>
             <div style="font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{constants.FLAG.get(champ, '🏳️')}</div>
             <div style="font-size: 13px; font-weight: 800; color: #e8e8f0; margin-top: 4px;">{champ}</div>
-            <a href="?action=reset_bracket" target="_parent" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
+            <a href="#" onclick="event.preventDefault(); resetBracket();" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
         </div>
         """
     else:
@@ -870,11 +881,32 @@ tree_html = f"""
 </div>
 """
 
-# Render bracket using components.html for full unsanitized HTML rendering
-# We need to embed the CSS inside the component since it renders in its own iframe
+# Serialize current state to embed in bracket JS (so picks survive mobile navigation)
+_bp_js = json.dumps(st.session_state.bracket_picks)
+_gp_js = json.dumps(st.session_state.picks)
+
 bracket_full_html = f"""
 <html>
 <head>
+<script>
+var CURRENT_BP = {_bp_js};
+var CURRENT_GP = {_gp_js};
+function pick(matchId, winner) {{
+    var picks = Object.assign({{}}, CURRENT_BP);
+    picks[matchId] = winner;
+    var params = new URLSearchParams(window.parent.location.search);
+    params.set('bp', JSON.stringify(picks));
+    params.set('gp', JSON.stringify(CURRENT_GP));
+    params.delete('action');
+    window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
+}}
+function resetBracket() {{
+    var params = new URLSearchParams(window.parent.location.search);
+    params.set('action', 'reset_bracket');
+    params.delete('bp');
+    window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
+}}
+</script>
 <style>
     body {{
         margin: 0;
