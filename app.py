@@ -725,8 +725,8 @@ def make_html_match_card(match_id, match_data):
     
     t1_safe = t1.replace("'", "\\'") if t1 else ''
     t2_safe = t2.replace("'", "\\'") if t2 else ''
-    t1_href_attr = f"onclick=\"event.preventDefault(); pick('{match_id}', '{t1_safe}')\"" if not is_t1_placeholder else ''
-    t2_href_attr = f"onclick=\"event.preventDefault(); pick('{match_id}', '{t2_safe}')\"" if not is_t2_placeholder else ''
+    t1_href_attr = f"href=\"#\" onclick=\"event.preventDefault(); pick('{match_id}', '{t1_safe}')\"" if not is_t1_placeholder else ''
+    t2_href_attr = f"href=\"#\" onclick=\"event.preventDefault(); pick('{match_id}', '{t2_safe}')\"" if not is_t2_placeholder else ''
     
     t1_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t1 and t1 else ''
     t2_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t2 and t2 else ''
