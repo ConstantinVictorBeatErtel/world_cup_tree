@@ -723,10 +723,17 @@ def make_html_match_card(match_id, match_data):
     t1_clickable_class = "disabled" if is_t1_placeholder else "clickable"
     t2_clickable_class = "disabled" if is_t2_placeholder else "clickable"
     
-    t1_safe = t1.replace("'", "\\'") if t1 else ''
-    t2_safe = t2.replace("'", "\\'") if t2 else ''
-    t1_href_attr = f"href=\"#\" onclick=\"event.preventDefault(); pick('{match_id}', '{t1_safe}')\"" if not is_t1_placeholder else ''
-    t2_href_attr = f"href=\"#\" onclick=\"event.preventDefault(); pick('{match_id}', '{t2_safe}')\"" if not is_t2_placeholder else ''
+    gp_str = urllib.parse.quote(json.dumps(st.session_state.picks))
+    if not is_t1_placeholder:
+        new_bp1 = urllib.parse.quote(json.dumps({**st.session_state.bracket_picks, match_id: t1}))
+        t1_href_attr = f'href="?bp={new_bp1}&gp={gp_str}" target="_parent"'
+    else:
+        t1_href_attr = ''
+    if not is_t2_placeholder:
+        new_bp2 = urllib.parse.quote(json.dumps({**st.session_state.bracket_picks, match_id: t2}))
+        t2_href_attr = f'href="?bp={new_bp2}&gp={gp_str}" target="_parent"'
+    else:
+        t2_href_attr = ''
     
     t1_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t1 and t1 else ''
     t2_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t2 and t2 else ''
@@ -761,7 +768,7 @@ def make_html_center_column(state):
             </div>
             <div style="font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{constants.FLAG.get(champ, '🏳️')}</div>
             <div style="font-size: 13px; font-weight: 800; color: #e8e8f0; margin-top: 4px;">{champ}</div>
-            <a href="#" onclick="event.preventDefault(); resetBracket();" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
+            <a href="?action=reset_bracket" target="_parent" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
         </div>
         """
     else:
@@ -881,32 +888,9 @@ tree_html = f"""
 </div>
 """
 
-# Serialize current state to embed in bracket JS (so picks survive mobile navigation)
-_bp_js = json.dumps(st.session_state.bracket_picks)
-_gp_js = json.dumps(st.session_state.picks)
-
 bracket_full_html = f"""
 <html>
 <head>
-<script>
-var CURRENT_BP = {_bp_js};
-var CURRENT_GP = {_gp_js};
-function pick(matchId, winner) {{
-    var picks = Object.assign({{}}, CURRENT_BP);
-    picks[matchId] = winner;
-    var params = new URLSearchParams(window.parent.location.search);
-    params.set('bp', JSON.stringify(picks));
-    params.set('gp', JSON.stringify(CURRENT_GP));
-    params.delete('action');
-    window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
-}}
-function resetBracket() {{
-    var params = new URLSearchParams(window.parent.location.search);
-    params.set('action', 'reset_bracket');
-    params.delete('bp');
-    window.parent.location.href = window.parent.location.pathname + '?' + params.toString();
-}}
-</script>
 <style>
     body {{
         margin: 0;
