@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import requests
 from bs4 import BeautifulSoup
 import re
+import json
 import constants
 import urllib.parse
 
@@ -353,8 +354,15 @@ if 'picks' not in st.session_state:
 if 'bracket_picks' not in st.session_state:
     st.session_state.bracket_picks = {}
 
-# Handle query parameters resets and picks
+# Handle query parameters resets and picks.
+#
+# Clicking a team navigates the page, which on Streamlit Cloud starts a fresh
+# session and wipes st.session_state. To survive that, every bracket link
+# carries the COMPLETE state in the URL: gp = group (MD3) picks, bp = bracket
+# picks. We rebuild session_state from those params on each load and leave them
+# in the URL so subsequent reloads keep restoring the full state.
 query_params = st.query_params
+
 if "action" in query_params:
     action = query_params["action"]
     if action == "reset_groups":
@@ -371,12 +379,17 @@ if "action" in query_params:
     st.query_params.clear()
     st.rerun()
 
-if "match_id" in query_params and "winner" in query_params:
-    match_id = query_params["match_id"]
-    winner = query_params["winner"]
-    st.session_state.bracket_picks[match_id] = winner
-    st.query_params.clear()
-    st.rerun()
+if "gp" in query_params:
+    try:
+        st.session_state.picks = json.loads(query_params["gp"])
+    except (ValueError, TypeError):
+        pass
+
+if "bp" in query_params:
+    try:
+        st.session_state.bracket_picks = json.loads(query_params["bp"])
+    except (ValueError, TypeError):
+        pass
 
 # ── HEADER ──
 st.markdown("""
@@ -692,30 +705,39 @@ thirdPlace = {
 champion = getW('M104', final['M104']['t1'], final['M104']['t2'])
 knockout_state = { 'r32': r32, 'r16': r16, 'qf': qf, 'sf': sf, 'final': final, 'thirdPlace': thirdPlace, 'champion': champion }
 
+# Encode the complete state (group picks + bracket picks with one new pick
+# applied) into a relative URL, so a full-page reload reconstructs everything.
+def state_href(match_id, team):
+    gp = urllib.parse.quote(json.dumps(st.session_state.picks))
+    new_bp = {k: v for k, v in st.session_state.bracket_picks.items() if v}
+    new_bp[match_id] = team
+    bp = urllib.parse.quote(json.dumps(new_bp))
+    return f'href="?gp={gp}&bp={bp}" target="_parent"'
+
 # HTML card generators
 def make_html_match_card(match_id, match_data):
     t1, t2 = match_data['t1'], match_data['t2']
     winner = st.session_state.bracket_picks.get(match_id)
-    
+
     # Reset invalid bracket picks or placeholder picks
     if winner and (winner not in constants.FLAG or (winner != t1 and winner != t2)):
         winner = None
         st.session_state.bracket_picks[match_id] = None
-        
+
     is_t1_placeholder = (not t1) or (t1 not in constants.FLAG)
     is_t2_placeholder = (not t2) or (t2 not in constants.FLAG)
-    
+
     display_t1 = f(t1) if t1 else (match_data.get('p1') or "TBD")
     display_t2 = f(t2) if t2 else (match_data.get('p2') or "TBD")
-    
+
     t1_active_class = "active" if winner == t1 and t1 else ""
     t2_active_class = "active" if winner == t2 and t2 else ""
-    
+
     t1_clickable_class = "disabled" if is_t1_placeholder else "clickable"
     t2_clickable_class = "disabled" if is_t2_placeholder else "clickable"
-    
-    t1_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t1)}" target="_parent"' if not is_t1_placeholder else ''
-    t2_href_attr = f'href="?match_id={match_id}&winner={urllib.parse.quote(t2)}" target="_parent"' if not is_t2_placeholder else ''
+
+    t1_href_attr = state_href(match_id, t1) if not is_t1_placeholder else ''
+    t2_href_attr = state_href(match_id, t2) if not is_t2_placeholder else ''
     
     t1_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t1 and t1 else ''
     t2_checkmark = '<span style="color: #22c55e; font-weight: bold; font-size: 10px;">✓</span>' if winner == t2 and t2 else ''
@@ -750,7 +772,7 @@ def make_html_center_column(state):
             </div>
             <div style="font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{constants.FLAG.get(champ, '🏳️')}</div>
             <div style="font-size: 13px; font-weight: 800; color: #e8e8f0; margin-top: 4px;">{champ}</div>
-            <a href="?action=reset_bracket" target="_parent" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
+            <a href="?gp={urllib.parse.quote(json.dumps(st.session_state.picks))}&bp=%7B%7D" target="_parent" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
         </div>
         """
     else:
