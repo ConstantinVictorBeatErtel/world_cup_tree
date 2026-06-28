@@ -910,7 +910,8 @@ script_html = """
 </script>
 """
 
-st.markdown(tree_html_clean + script_html, unsafe_allow_html=True)
+script_html_clean = "\n".join(ln.strip() for ln in script_html.splitlines() if ln.strip())
+st.markdown(tree_html_clean + "\n" + script_html_clean, unsafe_allow_html=True)
 
 # ── SECTION 3: final group standings ──
 st.markdown('<div class="section-title">final group standings</div>', unsafe_allow_html=True)
