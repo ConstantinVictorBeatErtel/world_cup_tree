@@ -434,30 +434,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Quick actions row
-col_status, col_btn1, col_btn2, col_btn3 = st.columns([3, 1, 1, 1])
+col_status, col_btn = st.columns([3, 1])
 with col_status:
     if st.button("🔄 Scrape Live Scores & Update Standings", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-with col_btn1:
-    if st.button("Reset Matches", use_container_width=True):
-        st.session_state.picks = {
-            f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
-        }
-        st.query_params["gp"] = json.dumps(st.session_state.picks)
-        st.rerun()
-with col_btn2:
+with col_btn:
     if st.button("Reset Bracket", use_container_width=True):
         st.session_state.bracket_picks = {}
-        st.query_params["bp"] = "{}"
-        st.rerun()
-with col_btn3:
-    if st.button("Reset All", use_container_width=True):
-        st.session_state.picks = {
-            f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
-        }
-        st.session_state.bracket_picks = {}
-        st.query_params["gp"] = json.dumps(st.session_state.picks)
         st.query_params["bp"] = "{}"
         st.rerun()
 
@@ -605,64 +589,8 @@ def get3(sl):
 
 group_keys = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
 
-# ── SECTION 1: Matches Grid ──
-st.markdown('<div class="section-title">1. Decide Matchday 3 Fixtures</div>', unsafe_allow_html=True)
-
-cols = st.columns(4)
-for idx, match in enumerate(md3_matches):
-    col_idx = idx % 4
-    gKey = match["group"]
-    i = match["index"]
-    h = match["home"]
-    a = match["away"]
-    finished = match["finished"]
-    score = match["score"]
-
-    r = st.session_state.picks.get(f"{gKey}_{i}", 'h')
-
-    with cols[col_idx]:
-        with st.container(border=True):
-            st.markdown(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <span style="color: #f5c518; font-weight: 800; font-size: 11px; letter-spacing: 0.05em;">GROUP {gKey}</span>
-                <span style="font-size: 9px; color: #6b7280; font-weight: bold; background: #1e1e28; padding: 2px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Fixture {i+1}</span>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if finished:
-                st.markdown(f"""
-                <div style="display: flex; flex-direction: column; gap: 8px; margin: 4px 0; text-align: center;">
-                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(h)}</div>
-                    <div style="font-size: 16px; font-weight: 800; color: #0e0e12; background: #f5c518; padding: 4px; border-radius: 6px; width: 60px; margin: 0 auto; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));">{score}</div>
-                    <div style="font-size: 13px; font-weight: bold; color: #e8e8f0;">{f(a)}</div>
-                    <div style="font-size: 10px; color: #22c55e; font-weight: bold; margin-top: 4px;">✓ Live Results Sync</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div style="font-size: 12px; font-weight: bold; color: #e8e8f0; margin-bottom: 6px; text-align: center;">
-                    {f(h).split(' ')[0]} vs {f(a).split(' ')[0]}
-                </div>
-                """, unsafe_allow_html=True)
-
-                selected = st.radio(
-                    label=f"select_{gKey}_{i}",
-                    options=[h, "Draw", a],
-                    index=0 if r == 'h' else (1 if r == 'd' else 2),
-                    horizontal=True,
-                    key=f"widget_{gKey}_{i}",
-                    format_func=format_team,
-                    label_visibility="collapsed"
-                )
-                if selected == h:
-                    st.session_state.picks[f"{gKey}_{i}"] = 'h'
-                elif selected == "Draw":
-                    st.session_state.picks[f"{gKey}_{i}"] = 'd'
-                else:
-                    st.session_state.picks[f"{gKey}_{i}"] = 'a'
-
 # ── SECTION 2: Knockout Bracket ──
-st.markdown('<div class="section-title">2. Interactive Knockout Bracket</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-title">Interactive Knockout Bracket</div>', unsafe_allow_html=True)
 st.caption("Click on any team in the bracket matchups below to advance them to the next round!")
 
 # R32 Teams setup
@@ -984,8 +912,8 @@ script_html = """
 
 st.markdown(tree_html_clean + script_html, unsafe_allow_html=True)
 
-# ── SECTION 3: Projected Group Standings ──
-st.markdown('<div class="section-title">3. Projected Group Standings</div>', unsafe_allow_html=True)
+# ── SECTION 3: final group standings ──
+st.markdown('<div class="section-title">final group standings</div>', unsafe_allow_html=True)
 
 groups_cols = st.columns(4)
 for idx, gKey in enumerate(group_keys):
