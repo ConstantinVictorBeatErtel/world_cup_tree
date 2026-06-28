@@ -712,7 +712,7 @@ def state_href(match_id, team):
     new_bp = {k: v for k, v in st.session_state.bracket_picks.items() if v}
     new_bp[match_id] = team
     bp = urllib.parse.quote(json.dumps(new_bp))
-    return f'href="?gp={gp}&bp={bp}" target="_parent"'
+    return f'href="?gp={gp}&bp={bp}" target="_self"'
 
 # HTML card generators
 def make_html_match_card(match_id, match_data):
@@ -772,7 +772,7 @@ def make_html_center_column(state):
             </div>
             <div style="font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{constants.FLAG.get(champ, '🏳️')}</div>
             <div style="font-size: 13px; font-weight: 800; color: #e8e8f0; margin-top: 4px;">{champ}</div>
-            <a href="?gp={urllib.parse.quote(json.dumps(st.session_state.picks))}&bp=%7B%7D" target="_parent" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
+            <a href="?gp={urllib.parse.quote(json.dumps(st.session_state.picks))}&bp=%7B%7D" target="_self" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
         </div>
         """
     else:
