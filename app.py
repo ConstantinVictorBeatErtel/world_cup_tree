@@ -354,6 +354,31 @@ if 'picks' not in st.session_state:
 if 'bracket_picks' not in st.session_state:
     st.session_state.bracket_picks = {}
 
+# Hidden text input for JavaScript integration to avoid page reloads
+st.markdown("""
+<style>
+    div[data-testid="stTextInput"]:has(input[id="hidden_bracket_input"]) {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+bracket_click = st.text_input("hidden_bracket_input", key="hidden_bracket_input", label_visibility="collapsed")
+
+if bracket_click:
+    try:
+        parts = bracket_click.split(",", 2)
+        if len(parts) == 3:
+            action, gp_val, bp_val = parts
+            if action in ["click", "reset"]:
+                st.session_state.picks = json.loads(gp_val)
+                st.session_state.bracket_picks = json.loads(bp_val)
+                st.query_params["gp"] = gp_val
+                st.query_params["bp"] = bp_val
+    except Exception:
+        pass
+    st.session_state.hidden_bracket_input = ""
+    st.rerun()
+
 # Handle query parameters resets and picks.
 #
 # Clicking a team navigates the page, which on Streamlit Cloud starts a fresh
@@ -419,10 +444,12 @@ with col_btn1:
         st.session_state.picks = {
             f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
         }
+        st.query_params["gp"] = json.dumps(st.session_state.picks)
         st.rerun()
 with col_btn2:
     if st.button("Reset Bracket", use_container_width=True):
         st.session_state.bracket_picks = {}
+        st.query_params["bp"] = "{}"
         st.rerun()
 with col_btn3:
     if st.button("Reset All", use_container_width=True):
@@ -430,6 +457,8 @@ with col_btn3:
             f"{g}_{i}": 'h' for g in ["G", "H", "I", "J", "K", "L"] for i in range(2)
         }
         st.session_state.bracket_picks = {}
+        st.query_params["gp"] = json.dumps(st.session_state.picks)
+        st.query_params["bp"] = "{}"
         st.rerun()
 
 st.write("")
@@ -772,7 +801,7 @@ def make_html_center_column(state):
             </div>
             <div style="font-size: 26px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{constants.FLAG.get(champ, '🏳️')}</div>
             <div style="font-size: 13px; font-weight: 800; color: #e8e8f0; margin-top: 4px;">{champ}</div>
-            <a href="?gp={urllib.parse.quote(json.dumps(st.session_state.picks))}&bp=%7B%7D" target="_self" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
+            <a href="?gp={urllib.parse.quote(json.dumps(st.session_state.picks))}&bp=%7B%7D" target="_self" class="reset-bracket-btn" style="display: inline-block; margin-top: 8px; font-size: 9px; font-weight: 600; color: #6b7280; text-decoration: none; background: #1e1e28; padding: 3px 6px; border-radius: 4px; border: 1px solid #2a2a35;">Reset Bracket</a>
         </div>
         """
     else:
@@ -903,7 +932,57 @@ tree_html = f"""
 # blocks. Strip per-line indentation and drop blank lines so the whole tree
 # is parsed as a single raw-HTML block instead of printed as code.
 tree_html_clean = "\n".join(ln.strip() for ln in tree_html.splitlines() if ln.strip())
-st.markdown(tree_html_clean, unsafe_allow_html=True)
+
+script_html = """
+<script>
+(function() {
+    if (window.bracketListenerAttached) return;
+    window.bracketListenerAttached = true;
+    
+    document.addEventListener("click", function(e) {
+        var teamRow = e.target.closest("a.bracket-team-row.clickable");
+        if (teamRow) {
+            var href = teamRow.getAttribute("href");
+            if (href && href.startsWith("?")) {
+                e.preventDefault();
+                var params = new URLSearchParams(href.substring(1));
+                var gp = params.get("gp");
+                var bp = params.get("bp");
+                
+                var input = document.getElementById("hidden_bracket_input");
+                if (input) {
+                    input.value = "click," + gp + "," + bp;
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            }
+            return;
+        }
+        
+        var resetLink = e.target.closest("a.reset-bracket-btn");
+        if (resetLink) {
+            var href = resetLink.getAttribute("href");
+            if (href && href.startsWith("?")) {
+                e.preventDefault();
+                var params = new URLSearchParams(href.substring(1));
+                var gp = params.get("gp");
+                var bp = params.get("bp");
+                
+                var input = document.getElementById("hidden_bracket_input");
+                if (input) {
+                    input.value = "reset," + gp + "," + bp;
+                    input.dispatchEvent(new Event("input", { bubbles: true }));
+                    input.dispatchEvent(new Event("change", { bubbles: true }));
+                }
+            }
+            return;
+        }
+    });
+})();
+</script>
+"""
+
+st.markdown(tree_html_clean + script_html, unsafe_allow_html=True)
 
 # ── SECTION 3: Projected Group Standings ──
 st.markdown('<div class="section-title">3. Projected Group Standings</div>', unsafe_allow_html=True)
